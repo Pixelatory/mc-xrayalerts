@@ -1,14 +1,14 @@
 package gg.tjr.mc.xrayalerts.listeners;
 
+import gg.tjr.mc.xrayalerts.Settings;
+import gg.tjr.mc.xrayalerts.Settings.AlertMode;
 import gg.tjr.mc.xrayalerts.XRayAlertsPlugin;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,44 +19,35 @@ import org.bukkit.scheduler.BukkitRunnable;
 public class OreMineListener implements Listener {
 
     private final Plugin plugin = XRayAlertsPlugin.getInstance();
-    private final FileConfiguration config = plugin.getConfig();
 
-    private final String messageFormat;
-    private final String mode;
-    private final List<String> monitoredBlocks;
+    private final Settings settings;
     private final Map<Block, Long> processedBlocks = new HashMap<>();
     private final long processedBlocksCleanupInterval = 1000*60*5;
 
-    public OreMineListener() {
+    public OreMineListener(Settings settings) {
         new BukkitRunnable() {
             @Override
             public void run() {
                 cleanupProcessedBlocks();
             }
         }.runTaskTimer(plugin, 20 * 60, 20 * 60);
-
-        this.messageFormat = config.getString(
-            "alert-message",
-            "&c&lX-Ray&r &7%player% found &6x%count% %item% at (%blockX%, %blockY%, %blockZ%)."
-        ).replace("&", "§");
-        this.mode = config.getString("mode", "block");
-        this.monitoredBlocks = config.getStringList("monitored-blocks");
+        this.settings = settings;
     }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         Block block = event.getBlock();
-        Material blockMaterial = block.getType();
 
         if (player.hasPermission("xrayalerts.ignore")) {
             return;
         }
 
-        if (monitoredBlocks.contains(blockMaterial.name())) {
+        if (this.settings.isMonitoredBlock(block)) {
+            Material blockMaterial = block.getType();
             int count;
 
-            if (mode.equalsIgnoreCase("vein")) {
+            if (this.settings.getAlertMode() == AlertMode.VEIN) {
                 if (processedBlocks.containsKey(block)) {
                     return;
                 }
@@ -70,25 +61,33 @@ public class OreMineListener implements Listener {
                 count = event.getBlock().getDrops(player.getInventory().getItemInMainHand()).size();
             }
 
-            String message = formatMessage(block, blockMaterial, player, count);
-
+            String message = formatPlayerMessage(block, blockMaterial, player, count);
             plugin.getServer().getOnlinePlayers().stream()
                     .filter(this::isAlertable)
                     .forEach(p -> p.sendMessage(message));
 
-            if(config.getBoolean("log")) {
-                plugin.getLogger().info(message);
+            if (this.settings.logAlerts()) {
+                String logMessage = formatLogMessage(block, blockMaterial, player, count);
+                plugin.getLogger().info(logMessage);
             }
         }
     }
 
     private boolean isAlertable(Player p) {
         return p.hasPermission("xrayalerts.receive")
-            && config.getBoolean("alerts." + p.getUniqueId(), true);
+            && this.settings.inAlertSet(p);
     }
 
-    private String formatMessage(Block block, Material blockMaterial, Player player, int count) {
-        return messageFormat
+    private String formatPlayerMessage(Block block, Material blockMaterial, Player player, int count) {
+        return formatMessage(this.settings.getMessageFormat(), block, blockMaterial, player, count);
+    }
+
+    private String formatLogMessage(Block block, Material blockMaterial, Player player, int count) {
+        return formatMessage(this.settings.getLogFormat(), block, blockMaterial, player, count);
+    }
+
+    private String formatMessage(String string, Block block, Material blockMaterial, Player player, int count) {
+        return string
             .replace("%count%", String.valueOf(count))
             .replace("%item%", blockMaterial.name().toLowerCase().replace("_", " "))
             .replace("%player%", player.getName())
