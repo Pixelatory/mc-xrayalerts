@@ -45,4 +45,4 @@ monitored-blocks:
 
 ---
 ## License
-Copyright © 2024 [Tyler Richards](https://github.com/tjrgg). [MIT License](LICENSE).
+Copyright © 2025 [Tyler Richards](https://github.com/tjrgg). [MIT License](LICENSE).
