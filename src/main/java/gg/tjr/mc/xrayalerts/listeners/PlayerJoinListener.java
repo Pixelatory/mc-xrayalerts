@@ -18,7 +18,7 @@ public class PlayerJoinListener implements Listener {
     public void onPlayerJoinEvent(PlayerJoinEvent event){
         Player player = event.getPlayer();
 
-        if(!settings.isInAlertsSection(player) && player.hasPermission("xrayalerts.receive")) {
+        if (!settings.isInAlertsSection(player) && player.hasPermission("xrayalerts.receive")) {
             settings.toggleAlerts(player);
         }
     }
